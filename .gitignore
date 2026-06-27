@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Environments
+.venv/
+venv/
+.env
+
+# Claude Code local-only settings (machine/permissions, not shared)
+.claude/settings.local.json
+
+# Original download artifact (source is extracted under conformerlab/)
+conformerlab.tar.gz
+
+# OS / editor
+.DS_Store
+*.swp
