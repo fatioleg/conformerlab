@@ -33,3 +33,9 @@ conformerlab.tar.gz
 # Vídeos de divulgação (binários grandes — usar Git LFS ou armazenamento externo)
 /Videos_Divulgação/
 *.mp4
+
+# Texto de divulgação (não versionar)
+Examples/divulgacao_social.md
+
+# Artefatos do WSL/Windows
+*:Zone.Identifier
