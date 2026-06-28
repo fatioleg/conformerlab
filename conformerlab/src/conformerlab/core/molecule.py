@@ -29,6 +29,28 @@ class MoleculeDescriptors:
     n_rotatable_bonds: int
 
 
+_NORMAL_VALENCE: dict[str, int] = {"N": 3, "O": 2}
+
+
+def _fix_valence_charges(mol: Chem.Mol) -> None:
+    """Infer missing formal charges from explicit connectivity in unsanitized mols.
+
+    V2000 SDF files generated without M CHG records (e.g. by some MD tools)
+    encode unusual valences via the atom-block valence field but omit the
+    corresponding formal charge. This function patches atoms whose explicit
+    bond order exceeds the element's standard valence, setting the formal
+    charge to compensate (e.g. N with 4 bonds → +1).
+    """
+    for atom in mol.GetAtoms():
+        sym = atom.GetSymbol()
+        if sym not in _NORMAL_VALENCE or atom.GetFormalCharge() != 0:
+            continue
+        exp_val = int(sum(b.GetBondTypeAsDouble() for b in atom.GetBonds()))
+        excess = exp_val - _NORMAL_VALENCE[sym]
+        if excess > 0:
+            atom.SetFormalCharge(excess)
+
+
 def mol_from_smiles(smiles: str, add_hs: bool = True) -> Chem.Mol:
     """Parse a SMILES into an RDKit Mol, adding explicit hydrogens by default.
 
@@ -65,11 +87,15 @@ def mol_from_sdf(path: str | Path, add_hs: bool = True) -> Chem.Mol:
         supplier = Chem.SDMolSupplier(str(p), removeHs=False, sanitize=False)
         mol = next((m for m in supplier if m is not None), None)
         if mol is not None:
+            _fix_valence_charges(mol)
             try:
                 Chem.SanitizeMol(mol)
             except (ValueError, RuntimeError):
-                pass
-            Chem.FastFindRings(mol)
+                Chem.SanitizeMol(
+                    mol,
+                    Chem.SanitizeFlags.SANITIZE_ALL ^ Chem.SanitizeFlags.SANITIZE_PROPERTIES,
+                )
+                Chem.FastFindRings(mol)
     if mol is None:
         raise InvalidMoleculeFileError(f"No readable molecule in SDF: {str(path)!r}")
     if add_hs:
