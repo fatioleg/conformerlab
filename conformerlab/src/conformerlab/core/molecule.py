@@ -60,6 +60,16 @@ def mol_from_sdf(path: str | Path, add_hs: bool = True) -> Chem.Mol:
     supplier = Chem.SDMolSupplier(str(p), removeHs=False, sanitize=True)
     mol = next((m for m in supplier if m is not None), None)
     if mol is None:
+        # Retry without sanitisation for unusual valences/charges (e.g. ions,
+        # metal centres, molecular clusters), then sanitise leniently.
+        supplier = Chem.SDMolSupplier(str(p), removeHs=False, sanitize=False)
+        mol = next((m for m in supplier if m is not None), None)
+        if mol is not None:
+            try:
+                Chem.SanitizeMol(mol)
+            except (ValueError, RuntimeError):
+                pass
+    if mol is None:
         raise InvalidMoleculeFileError(f"No readable molecule in SDF: {str(path)!r}")
     if add_hs:
         mol = Chem.AddHs(mol, addCoords=True)
@@ -86,8 +96,29 @@ def mol_from_xyz(path: str | Path, charge: int = 0, add_hs: bool = True) -> Chem
     try:
         rdDetermineBonds.DetermineBonds(mol, charge=charge)
     except (ValueError, RuntimeError) as exc:
+        # Bond-order perception requires the total charge to be consistent with
+        # the geometry. Scan nearby charges to suggest the right one.
+        suggestion = None
+        for q in sorted(range(-6, 7), key=lambda c: (abs(c - charge), c)):
+            if q == charge:
+                continue
+            trial = Chem.Mol(raw)
+            try:
+                rdDetermineBonds.DetermineBonds(trial, charge=q)
+            except (ValueError, RuntimeError):
+                continue
+            suggestion = q
+            break
+        if suggestion is not None:
+            raise InvalidMoleculeFileError(
+                f"Could not perceive bonds from XYZ at total charge {charge}. "
+                f"The geometry is consistent with total charge {suggestion} — "
+                f"set 'Carga total' to {suggestion} and load again."
+            ) from exc
         raise InvalidMoleculeFileError(
-            f"Could not perceive bonds from XYZ {str(path)!r}: {exc}"
+            f"Could not perceive bonds from XYZ {str(path)!r} at charge "
+            f"{charge}; no total charge in [-6, 6] yields a valid bond "
+            f"ordering. {exc}"
         ) from exc
     if add_hs:
         mol = Chem.AddHs(mol, addCoords=True)
