@@ -29,3 +29,7 @@ conformerlab.tar.gz
 # Ad-hoc run outputs (exports gerados ao rodar o app, não fazem parte do código)
 /ensemble_*.sdf
 /conformerlab/*.csv
+
+# Vídeos de divulgação (binários grandes — usar Git LFS ou armazenamento externo)
+/Videos_Divulgação/
+*.mp4
