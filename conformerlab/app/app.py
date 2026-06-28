@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import io
 import sys
 import tempfile
@@ -12,6 +13,7 @@ import plotly.express as px
 import py3Dmol
 import streamlit as st
 import streamlit.components.v1 as components
+from PIL import Image
 from rdkit import Chem
 from rdkit.Chem import AllChem, Descriptors, rdMolDescriptors
 from rdkit.Chem.Draw import rdMolDraw2D
@@ -193,12 +195,23 @@ def _ensemble_to_df(ensemble: EnsembleResult) -> pd.DataFrame:
 # UI
 # ---------------------------------------------------------------------------
 
-st.set_page_config(page_title="conformerlab", page_icon="⚗️", layout="wide")
-st.title("⚗️ conformerlab")
+_icon_path = Path(__file__).parent / "icon.png"
+_icon = Image.open(_icon_path)
+st.set_page_config(page_title="conformerlab", page_icon=_icon, layout="wide")
+
+_icon_b64 = base64.b64encode(_icon_path.read_bytes()).decode()
+st.markdown(
+    f'<div style="display:flex;align-items:center;gap:14px;margin-bottom:4px">'
+    f'<img src="data:image/png;base64,{_icon_b64}"'
+    f' width="64" style="border-radius:10px;flex-shrink:0"/>'
+    f'<h1 style="margin:0;line-height:1">conformerlab</h1>'
+    f'</div>',
+    unsafe_allow_html=True,
+)
 st.caption("Geração e análise de confôrmeros — interface local")
 
-tab_load, tab_preview, tab_generate, tab_results = st.tabs([
-    "📂 Carregar", "🔬 Prévia", "⚙️ Gerar", "📊 Resultados",
+tab_load, tab_generate, tab_results = st.tabs([
+    "📂 Carregar", "⚙️ Gerar", "📊 Resultados",
 ])
 
 # ── Aba 1: Carregar ───────────────────────────────────────────────────────
@@ -230,19 +243,16 @@ with tab_load:
                 st.session_state["mol_input"] = mol_input
                 st.session_state["rdkit_mol"] = rdkit_mol
                 st.session_state.pop("ensemble", None)
-                st.success("Molécula carregada. Acesse as abas **Prévia** ou **Gerar**.")
+                st.success("Molécula carregada. Acesse a aba **Gerar**.")
             except (InvalidSmilesError, InvalidMoleculeFileError) as exc:
                 st.session_state.pop("mol_input", None)
                 st.error(str(exc))
 
-# ── Aba 2: Prévia ─────────────────────────────────────────────────────────
-with tab_preview:
-    if "mol_input" not in st.session_state:
-        st.info("Carregue uma molécula na aba **Carregar** primeiro.")
-    else:
+    if "mol_input" in st.session_state:
         mol_input: MoleculeInput = st.session_state["mol_input"]
         rdkit_mol: Chem.Mol = st.session_state["rdkit_mol"]
 
+        st.divider()
         desc_col, img_col = st.columns([1, 2])
         with desc_col:
             st.markdown("**Descritores**")
@@ -254,7 +264,7 @@ with tab_preview:
             with sub3d:
                 _render_3d_input(rdkit_mol)
 
-# ── Aba 3: Gerar ──────────────────────────────────────────────────────────
+# ── Aba 2: Gerar ──────────────────────────────────────────────────────────
 with tab_generate:
     if "mol_input" not in st.session_state:
         st.info("Carregue uma molécula na aba **Carregar** primeiro.")
