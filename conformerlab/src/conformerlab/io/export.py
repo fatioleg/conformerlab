@@ -25,6 +25,7 @@ _CSV_COLUMNS = [
     "sasa_ang2",
     "selected",
     "backend",
+    "mlip_method",
 ]
 
 
@@ -77,6 +78,8 @@ def write_sdf(ensemble: EnsembleResult, path: str | Path) -> Path:
         if r.boltzmann_weight is not None:
             mol.SetProp("boltzmann_weight", f"{r.boltzmann_weight:.6f}")
         mol.SetProp("backend", r.backend)
+        if r.mlip_method is not None:
+            mol.SetProp("mlip_method", r.mlip_method)
         writer.write(mol, confId=r.conf_id)
     writer.close()
     return path

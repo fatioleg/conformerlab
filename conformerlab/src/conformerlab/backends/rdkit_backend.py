@@ -9,12 +9,11 @@ Energies are MMFF94s in kcal/mol straight out of RDKit.
 
 from __future__ import annotations
 
-from rdkit import Chem
 from rdkit.Chem import AllChem
 
 from conformerlab.backends.base import ConformerBackend
 from conformerlab.core.errors import EmptyEnsembleError
-from conformerlab.core.molecule import mol_from_smiles
+from conformerlab.core.molecule import mol_from_input
 from conformerlab.core.types import (
     ConformerRecord,
     EnsembleResult,
@@ -39,7 +38,8 @@ class RDKitBackend(ConformerBackend):
     def generate(
         self, molecule: MoleculeInput, settings: GenerationSettings
     ) -> EnsembleResult:
-        mol = mol_from_smiles(molecule.smiles, add_hs=True)
+        mol = mol_from_input(molecule, add_hs=True)
+        mol.RemoveAllConformers()  # SDF/XYZ inputs carry coords; ETKDG re-embeds
 
         n_request = min(
             settings.max_conformers,

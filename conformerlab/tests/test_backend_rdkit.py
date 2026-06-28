@@ -2,8 +2,8 @@ import math
 
 from conformerlab.analysis.pipeline import analyze
 from conformerlab.backends.factory import get_backend
-from conformerlab.io.export import to_dataframe, write_csv
 from conformerlab.core.types import GenerationSettings, MoleculeInput
+from conformerlab.io.export import to_dataframe, write_csv
 
 
 def _run(smiles, name, n=10):

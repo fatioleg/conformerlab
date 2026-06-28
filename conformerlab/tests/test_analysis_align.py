@@ -44,7 +44,7 @@ def test_planar_atoms_ethanol_no_ring_no_double():
 
 
 def test_planar_atoms_ibuprofen_returns_only_ring():
-    # ibuprofen has one benzene ring — planar_atom_ids should return exactly those 6 carbons
+    # ibuprofen has one benzene ring — planar_atom_ids returns exactly those 6 carbons
     mol = Chem.MolFromSmiles("CC(C)Cc1ccc(cc1)C(C)C(=O)O")
     ids = planar_atom_ids(mol)
     assert len(ids) == 6
@@ -60,7 +60,7 @@ def test_largest_ring_system_two_separate_rings():
 
 
 def test_largest_ring_system_fused_is_bigger():
-    # naphthalene (fused bicyclic, 10 ring atoms) + a separate benzene (6) connected by a chain
+    # naphthalene (fused bicyclic, 10 atoms) vs separate benzene (6) connected by chain
     mol = Chem.MolFromSmiles("c1ccc2ccccc2c1CCc1ccccc1")
     ids = _largest_ring_system_ids(mol)
     # naphthalene system has 10 atoms, benzene has 6 → largest wins
@@ -82,7 +82,7 @@ def test_align_ref_conformer_unchanged():
     ref_before = list(mol.GetConformer(ref_id).GetPositions().flatten())
     aligned = align_conformers(mol, ref_conf_id=ref_id)
     ref_after = list(aligned.GetConformer(ref_id).GetPositions().flatten())
-    for a, b in zip(ref_before, ref_after):
+    for a, b in zip(ref_before, ref_after, strict=True):
         assert abs(a - b) < 1e-4
 
 

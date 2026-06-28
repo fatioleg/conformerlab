@@ -31,6 +31,6 @@ def add_boltzmann_weights(
     ]
     boltz = [math.exp(-d / rt) for d in deltas]
     z = sum(boltz)
-    for r, b in zip(ensemble.records, boltz):
+    for r, b in zip(ensemble.records, boltz, strict=True):
         r.boltzmann_weight = b / z
     return ensemble

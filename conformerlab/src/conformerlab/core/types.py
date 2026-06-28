@@ -11,18 +11,32 @@ anywhere in the core. If a backend speaks Hartree, it converts at its edge
 
 from __future__ import annotations
 
-from typing import Optional
-
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
 
 class MoleculeInput(BaseModel):
-    """User-facing description of a molecule to analyse."""
+    """User-facing description of a molecule to analyse.
 
-    smiles: str
+    Provide exactly one source: ``smiles``, ``sdf_path``, or ``xyz_path``.
+    ``charge`` is also used for bond perception when reading XYZ.
+    """
+
+    smiles: str | None = None
+    sdf_path: str | None = None
+    xyz_path: str | None = None
     name: str = "molecule"
     charge: int = 0
     multiplicity: int = 1
+
+    @model_validator(mode="after")
+    def _exactly_one_source(self) -> MoleculeInput:
+        sources = [self.smiles, self.sdf_path, self.xyz_path]
+        if sum(s is not None for s in sources) != 1:
+            raise ValueError(
+                "Provide exactly one molecule source: smiles, sdf_path, or "
+                "xyz_path."
+            )
+        return self
 
 
 class GenerationSettings(BaseModel):
@@ -35,18 +49,37 @@ class GenerationSettings(BaseModel):
     random_seed: int = 42
 
 
+class RefinementSettings(BaseModel):
+    """Knobs for MLIP re-optimisation, calculator-agnostic."""
+
+    method: str = "aimnet2"          # registered calculator name; see refine.mlip
+    fmax: float = 0.05               # convergence threshold, eV/Å
+    max_steps: int = 200
+    device: str = "cpu"              # "cpu" | "cuda"
+    max_conformers: int | None = None  # None = refine all; N = top-N by energy
+    energy_only: bool = False          # True = single-point (no geometry change)
+    # heavy-atom best-RMSD (Å) below which two refined geometries are treated as
+    # duplicates (the lowest-energy one is kept); None disables deduplication.
+    # Off by default at the API level; the UI enables it (slider default 0.125).
+    dedup_rmsd: float | None = None
+
+
 class ConformerRecord(BaseModel):
     """One conformer and its analysed properties."""
 
     conf_id: int
     backend: str
     energy_kcal: float                       # absolute, kcal/mol
-    delta_e_kcal: Optional[float] = None      # relative to the minimum
-    boltzmann_weight: Optional[float] = None  # 0..1, sums to 1 over ensemble
-    rmsd_to_min_ang: Optional[float] = None   # heavy-atom RMSD vs lowest E
-    radius_of_gyration_ang: Optional[float] = None
-    sasa_ang2: Optional[float] = None
+    delta_e_kcal: float | None = None      # relative to the minimum
+    boltzmann_weight: float | None = None  # 0..1, sums to 1 over ensemble
+    rmsd_to_min_ang: float | None = None   # heavy-atom RMSD vs lowest E
+    radius_of_gyration_ang: float | None = None
+    sasa_ang2: float | None = None
     selected: bool = False
+    mlip_method: str | None = None         # set after MLIP refinement
+    energy_trajectory: list[float] | None = None  # per-step kcal/mol during MLIP opt
+    # per-step max-force eV/Å during MLIP geometry optimisation
+    force_trajectory: list[float] | None = None
 
 
 class EnsembleResult(BaseModel):
@@ -65,7 +98,7 @@ class EnsembleResult(BaseModel):
     # still allowing geometry-based analysis (RMSD, r_g, SASA).
     _mol: object = PrivateAttr(default=None)
 
-    def attach_mol(self, mol: object) -> "EnsembleResult":
+    def attach_mol(self, mol: object) -> EnsembleResult:
         self._mol = mol
         return self
 

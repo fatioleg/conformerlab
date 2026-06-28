@@ -25,3 +25,7 @@ conformerlab.tar.gz
 # OS / editor
 .DS_Store
 *.swp
+
+# Ad-hoc run outputs (exports gerados ao rodar o app, não fazem parte do código)
+/ensemble_*.sdf
+/conformerlab/*.csv

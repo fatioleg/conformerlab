@@ -13,6 +13,10 @@ class InvalidSmilesError(ConformerLabError):
     """Raised when a SMILES string cannot be parsed into a molecule."""
 
 
+class InvalidMoleculeFileError(ConformerLabError):
+    """Raised when an SDF/XYZ input file is missing or cannot be parsed."""
+
+
 class BackendNotAvailableError(ConformerLabError):
     """Raised when an optional backend (openconf, MLIP) is not installed."""
 
