@@ -197,225 +197,238 @@ st.set_page_config(page_title="conformerlab", page_icon="⚗️", layout="wide")
 st.title("⚗️ conformerlab")
 st.caption("Geração e análise de confôrmeros — interface local")
 
-# ── Seção 1: entrada ──────────────────────────────────────────────────────
-st.header("1. Carregar molécula")
+tab_load, tab_preview, tab_generate, tab_results = st.tabs([
+    "📂 Carregar", "🔬 Prévia", "⚙️ Gerar", "📊 Resultados",
+])
 
-input_mode = st.radio("Formato de entrada", ["SMILES", "SDF", "XYZ"], horizontal=True)
+# ── Aba 1: Carregar ───────────────────────────────────────────────────────
+with tab_load:
+    input_mode = st.radio("Formato de entrada", ["SMILES", "SDF", "XYZ"], horizontal=True)
 
-charge = 0
-smiles_val = None
-uploaded = None
+    charge = 0
+    smiles_val = None
+    uploaded = None
 
-if input_mode == "SMILES":
-    smiles_val = st.text_input("SMILES", placeholder="ex: CC(=O)Oc1ccccc1C(=O)O")
-elif input_mode == "SDF":
-    uploaded = st.file_uploader("Arquivo SDF", type=["sdf", "mol"])
-else:
-    uploaded = st.file_uploader("Arquivo XYZ", type=["xyz"])
-    charge = st.slider("Carga total", min_value=-5, max_value=5, value=0)
-
-if st.button("Carregar molécula", type="primary"):
-    mol_input, err = _load_molecule(input_mode, smiles_val, uploaded, charge)
-    if err:
-        st.session_state.pop("mol_input", None)
-        st.error(f"Erro: {err}")
-    elif mol_input is None:
-        st.warning("Preencha o campo acima antes de carregar.")
+    if input_mode == "SMILES":
+        smiles_val = st.text_input("SMILES", placeholder="ex: CC(=O)Oc1ccccc1C(=O)O")
+    elif input_mode == "SDF":
+        uploaded = st.file_uploader("Arquivo SDF", type=["sdf", "mol"])
     else:
-        try:
-            rdkit_mol = mol_from_input(mol_input, add_hs=True)
-            st.session_state["mol_input"] = mol_input
-            st.session_state["rdkit_mol"] = rdkit_mol
-            st.session_state.pop("ensemble", None)
-        except (InvalidSmilesError, InvalidMoleculeFileError) as exc:
+        uploaded = st.file_uploader("Arquivo XYZ", type=["xyz"])
+        charge = st.slider("Carga total", min_value=-5, max_value=5, value=0)
+
+    if st.button("Carregar molécula", type="primary"):
+        mol_input, err = _load_molecule(input_mode, smiles_val, uploaded, charge)
+        if err:
             st.session_state.pop("mol_input", None)
-            st.error(str(exc))
-
-# ── Seção 2: prévia ───────────────────────────────────────────────────────
-if "mol_input" in st.session_state:
-    mol_input: MoleculeInput = st.session_state["mol_input"]
-    rdkit_mol: Chem.Mol = st.session_state["rdkit_mol"]
-
-    st.divider()
-    st.header("2. Prévia da molécula")
-
-    desc_col, img_col = st.columns([1, 2])
-    with desc_col:
-        st.markdown("**Descritores**")
-        _desc_table(rdkit_mol, mol_input)
-
-    with img_col:
-        tab2d, tab3d = st.tabs(["2D", "3D"])
-        with tab2d:
-            st.image(_mol_2d_png(rdkit_mol), use_container_width=True)
-        with tab3d:
-            _render_3d_input(rdkit_mol)
-
-    # ── Seção 3: gerar ────────────────────────────────────────────────────
-    st.divider()
-    st.header("3. Gerar confôrmeros")
-
-    c1, c2 = st.columns(2)
-    with c1:
-        backend_choice = st.selectbox("Backend", ["openconf", "rdkit"])
-        preset = st.selectbox(
-            "Preset",
-            ["rapid", "ensemble", "docking", "macrocycle"],
-            disabled=(backend_choice != "openconf"),
-        )
-        max_confs = st.slider("Máx. confôrmeros", 5, 500, 50, 5)
-    with c2:
-        energy_window = st.slider("Janela de energia (kcal/mol)", 1.0, 30.0, 10.0, 0.5)
-        temperature = st.slider("Temperatura (K)", 200.0, 400.0, 298.0, 5.0)
-        random_seed = st.slider("Semente aleatória", 0, 999, 42)
-
-    if st.button("▶ Gerar confôrmeros", type="primary"):
-        settings = GenerationSettings(
-            preset=preset,
-            max_conformers=int(max_confs),
-            energy_window_kcal=float(energy_window),
-            temperature_k=float(temperature),
-            random_seed=int(random_seed),
-        )
-        with st.spinner("Gerando confôrmeros..."):
-            try:
-                if backend_choice == "openconf":
-                    from conformerlab.backends.openconf_backend import OpenConfBackend
-                    backend = OpenConfBackend()
-                    if not backend.is_available():
-                        st.error("openconf não instalado. Escolha o backend rdkit.")
-                        st.stop()
-                else:
-                    from conformerlab.backends.rdkit_backend import RDKitBackend
-                    backend = RDKitBackend()
-                from conformerlab.analysis.pipeline import analyze
-                ensemble = backend.generate(mol_input, settings)
-                ensemble = analyze(ensemble)
-                st.session_state["ensemble"] = ensemble
-            except Exception as exc:
-                st.error(f"Erro na geração: {exc}")
-
-# ── Seção 4: resultados ───────────────────────────────────────────────────
-if "ensemble" in st.session_state:
-    ensemble: EnsembleResult = st.session_state["ensemble"]
-    mol_3d: Chem.Mol = ensemble.mol  # type: ignore[assignment]
-    all_records = ensemble.records
-    n_total = len(all_records)
-
-    st.divider()
-    st.header(f"4. Resultados — {n_total} confôrmeros ({ensemble.backend})")
-
-    # ── Filtros ───────────────────────────────────────────────────────────
-    with st.expander("Filtros", expanded=False):
-        de_vals = [r.delta_e_kcal for r in all_records if r.delta_e_kcal is not None]
-        rmsd_vals = [r.rmsd_to_min_ang for r in all_records if r.rmsd_to_min_ang is not None]
-        bw_vals = [r.boltzmann_weight for r in all_records if r.boltzmann_weight is not None]
-
-        f1, f2, f3 = st.columns(3)
-        with f1:
-            de_max = st.slider(
-                "ΔE máximo (kcal/mol)",
-                min_value=0.0,
-                max_value=float(max(de_vals)) if de_vals else 10.0,
-                value=float(max(de_vals)) if de_vals else 10.0,
-                step=0.1,
-            )
-        with f2:
-            bw_min = st.slider(
-                "Peso Boltzmann mínimo",
-                min_value=0.0,
-                max_value=1.0,
-                value=0.0,
-                step=0.001,
-                format="%.3f",
-            )
-        with f3:
-            rmsd_max = st.slider(
-                "RMSD máximo (Å)",
-                min_value=0.0,
-                max_value=float(max(rmsd_vals)) if rmsd_vals else 5.0,
-                value=float(max(rmsd_vals)) if rmsd_vals else 5.0,
-                step=0.1,
-            )
-
-    # Aplicar filtros
-    records = [
-        r for r in all_records
-        if (r.delta_e_kcal is None or r.delta_e_kcal <= de_max)
-        and (r.boltzmann_weight is None or r.boltzmann_weight >= bw_min)
-        and (r.rmsd_to_min_ang is None or r.rmsd_to_min_ang <= rmsd_max)
-    ]
-    n = len(records)
-    if n < n_total:
-        st.caption(f"Mostrando **{n}** de {n_total} confôrmeros após filtros.")
-
-    # ── Tabela + Export ───────────────────────────────────────────────────
-    df = _ensemble_to_df(ensemble)
-    df_filtered = df[df["conf_id"].isin(r.conf_id for r in records)]
-
-    st.markdown("**Tabela de energias**")
-    st.dataframe(df_filtered, use_container_width=True, hide_index=True)
-
-    exp1, exp2 = st.columns(2)
-    with exp1:
-        st.download_button(
-            "⬇ Baixar tabela (CSV)",
-            data=df_filtered.to_csv(index=False).encode(),
-            file_name=f"ensemble_{ensemble.backend}.csv",
-            mime="text/csv",
-        )
-    with exp2:
-        if mol_3d is not None:
-            st.download_button(
-                "⬇ Baixar ensemble (SDF)",
-                data=_ensemble_to_sdf_bytes(mol_3d, records),
-                file_name=f"ensemble_{ensemble.backend}.sdf",
-                mime="chemical/x-mdl-sdfile",
-            )
-
-    # ── Gráfico de barras ─────────────────────────────────────────────────
-    st.markdown("**Energia relativa por confôrmero**")
-    fig = px.bar(
-        df_filtered, x="conf_id", y="ΔE (kcal/mol)",
-        color="ΔE (kcal/mol)",
-        color_continuous_scale="RdYlGn_r",
-        labels={"conf_id": "Confôrmero", "ΔE (kcal/mol)": "ΔE (kcal/mol)"},
-        height=300,
-    )
-    fig.update_layout(
-        plot_bgcolor="#0e1117", paper_bgcolor="#0e1117",
-        font_color="white", showlegend=False,
-        coloraxis_showscale=False,
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    # ── Viewer 3D ─────────────────────────────────────────────────────────
-    st.divider()
-    viewer_tab, overlay_tab = st.tabs(["Confôrmero individual", "Sobreposição (RMSD-alinhada)"])
-
-    with viewer_tab:
-        if not records:
-            st.warning("Nenhum confôrmero passa nos filtros atuais.")
+            st.error(f"Erro: {err}")
+        elif mol_input is None:
+            st.warning("Preencha o campo acima antes de carregar.")
         else:
-            sel_idx = st.selectbox(
-                "Selecionar confôrmero",
-                options=range(n),
-                format_func=lambda i: (
-                    f"#{records[i].conf_id}  "
-                    f"ΔE={records[i].delta_e_kcal:.2f} kcal/mol  "
-                    f"Boltzmann={records[i].boltzmann_weight:.3f}"
-                ),
+            try:
+                rdkit_mol = mol_from_input(mol_input, add_hs=True)
+                st.session_state["mol_input"] = mol_input
+                st.session_state["rdkit_mol"] = rdkit_mol
+                st.session_state.pop("ensemble", None)
+                st.success("Molécula carregada. Acesse as abas **Prévia** ou **Gerar**.")
+            except (InvalidSmilesError, InvalidMoleculeFileError) as exc:
+                st.session_state.pop("mol_input", None)
+                st.error(str(exc))
+
+# ── Aba 2: Prévia ─────────────────────────────────────────────────────────
+with tab_preview:
+    if "mol_input" not in st.session_state:
+        st.info("Carregue uma molécula na aba **Carregar** primeiro.")
+    else:
+        mol_input: MoleculeInput = st.session_state["mol_input"]
+        rdkit_mol: Chem.Mol = st.session_state["rdkit_mol"]
+
+        desc_col, img_col = st.columns([1, 2])
+        with desc_col:
+            st.markdown("**Descritores**")
+            _desc_table(rdkit_mol, mol_input)
+        with img_col:
+            sub2d, sub3d = st.tabs(["2D", "3D"])
+            with sub2d:
+                st.image(_mol_2d_png(rdkit_mol), use_container_width=True)
+            with sub3d:
+                _render_3d_input(rdkit_mol)
+
+# ── Aba 3: Gerar ──────────────────────────────────────────────────────────
+with tab_generate:
+    if "mol_input" not in st.session_state:
+        st.info("Carregue uma molécula na aba **Carregar** primeiro.")
+    else:
+        mol_input = st.session_state["mol_input"]
+
+        c1, c2 = st.columns(2)
+        with c1:
+            backend_choice = st.selectbox("Backend", ["openconf", "rdkit"])
+            preset = st.selectbox(
+                "Preset",
+                ["rapid", "ensemble", "docking", "macrocycle"],
+                disabled=(backend_choice != "openconf"),
             )
+            max_confs = st.slider("Máx. confôrmeros", 5, 500, 50, 5)
+        with c2:
+            energy_window = st.slider("Janela de energia (kcal/mol)", 1.0, 30.0, 10.0, 0.5)
+            temperature = st.slider("Temperatura (K)", 200.0, 400.0, 298.0, 5.0)
+            random_seed = st.slider("Semente aleatória", 0, 999, 42)
+
+        if st.button("▶ Gerar confôrmeros", type="primary"):
+            settings = GenerationSettings(
+                preset=preset,
+                max_conformers=int(max_confs),
+                energy_window_kcal=float(energy_window),
+                temperature_k=float(temperature),
+                random_seed=int(random_seed),
+            )
+            with st.spinner("Gerando confôrmeros..."):
+                try:
+                    if backend_choice == "openconf":
+                        from conformerlab.backends.openconf_backend import OpenConfBackend
+                        backend = OpenConfBackend()
+                        if not backend.is_available():
+                            st.error("openconf não instalado. Escolha o backend rdkit.")
+                            backend = None
+                    else:
+                        from conformerlab.backends.rdkit_backend import RDKitBackend
+                        backend = RDKitBackend()
+                    if backend is not None:
+                        from conformerlab.analysis.pipeline import analyze
+                        ensemble = backend.generate(mol_input, settings)
+                        ensemble = analyze(ensemble)
+                        st.session_state["ensemble"] = ensemble
+                        st.success(
+                            f"{len(ensemble.records)} confôrmeros gerados. "
+                            "Acesse a aba **Resultados**."
+                        )
+                except Exception as exc:
+                    st.error(f"Erro na geração: {exc}")
+
+# ── Aba 4: Resultados ─────────────────────────────────────────────────────
+with tab_results:
+    if "ensemble" not in st.session_state:
+        st.info("Gere confôrmeros na aba **Gerar** primeiro.")
+    else:
+        ensemble: EnsembleResult = st.session_state["ensemble"]
+        mol_3d: Chem.Mol = ensemble.mol  # type: ignore[assignment]
+        all_records = ensemble.records
+        n_total = len(all_records)
+
+        st.subheader(f"{n_total} confôrmeros — backend: {ensemble.backend}")
+
+        # ── Filtros ───────────────────────────────────────────────────────
+        with st.expander("Filtros", expanded=False):
+            de_vals = [r.delta_e_kcal for r in all_records if r.delta_e_kcal is not None]
+            rmsd_vals = [r.rmsd_to_min_ang for r in all_records if r.rmsd_to_min_ang is not None]
+
+            f1, f2, f3 = st.columns(3)
+            with f1:
+                de_max = st.slider(
+                    "ΔE máximo (kcal/mol)",
+                    min_value=0.0,
+                    max_value=float(max(de_vals)) if de_vals else 10.0,
+                    value=float(max(de_vals)) if de_vals else 10.0,
+                    step=0.1,
+                )
+            with f2:
+                bw_min = st.slider(
+                    "Peso Boltzmann mínimo",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=0.0,
+                    step=0.001,
+                    format="%.3f",
+                )
+            with f3:
+                rmsd_max = st.slider(
+                    "RMSD máximo (Å)",
+                    min_value=0.0,
+                    max_value=float(max(rmsd_vals)) if rmsd_vals else 5.0,
+                    value=float(max(rmsd_vals)) if rmsd_vals else 5.0,
+                    step=0.1,
+                )
+
+        records = [
+            r for r in all_records
+            if (r.delta_e_kcal is None or r.delta_e_kcal <= de_max)
+            and (r.boltzmann_weight is None or r.boltzmann_weight >= bw_min)
+            and (r.rmsd_to_min_ang is None or r.rmsd_to_min_ang <= rmsd_max)
+        ]
+        n = len(records)
+        if n < n_total:
+            st.caption(f"Mostrando **{n}** de {n_total} confôrmeros após filtros.")
+
+        # ── Tabela + Export ───────────────────────────────────────────────
+        df = _ensemble_to_df(ensemble)
+        df_filtered = df[df["conf_id"].isin(r.conf_id for r in records)]
+
+        st.markdown("**Tabela de energias**")
+        st.dataframe(df_filtered, use_container_width=True, hide_index=True)
+
+        exp1, exp2 = st.columns(2)
+        with exp1:
+            st.download_button(
+                "⬇ Baixar tabela (CSV)",
+                data=df_filtered.to_csv(index=False).encode(),
+                file_name=f"ensemble_{ensemble.backend}.csv",
+                mime="text/csv",
+            )
+        with exp2:
             if mol_3d is not None:
-                _render_3d_single(mol_3d, conf_id=records[sel_idx].conf_id)
+                st.download_button(
+                    "⬇ Baixar ensemble (SDF)",
+                    data=_ensemble_to_sdf_bytes(mol_3d, records),
+                    file_name=f"ensemble_{ensemble.backend}.sdf",
+                    mime="chemical/x-mdl-sdfile",
+                )
+
+        # ── Gráfico de barras ─────────────────────────────────────────────
+        st.markdown("**Energia relativa por confôrmero**")
+        fig = px.bar(
+            df_filtered, x="conf_id", y="ΔE (kcal/mol)",
+            color="ΔE (kcal/mol)",
+            color_continuous_scale="RdYlGn_r",
+            labels={"conf_id": "Confôrmero", "ΔE (kcal/mol)": "ΔE (kcal/mol)"},
+            height=300,
+        )
+        fig.update_layout(
+            plot_bgcolor="#0e1117", paper_bgcolor="#0e1117",
+            font_color="white", showlegend=False,
+            coloraxis_showscale=False,
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        # ── Viewer 3D ─────────────────────────────────────────────────────
+        st.divider()
+        viewer_tab, overlay_tab = st.tabs([
+            "Confôrmero individual", "Sobreposição (RMSD-alinhada)",
+        ])
+
+        with viewer_tab:
+            if not records:
+                st.warning("Nenhum confôrmero passa nos filtros atuais.")
+            else:
+                sel_idx = st.selectbox(
+                    "Selecionar confôrmero",
+                    options=range(n),
+                    format_func=lambda i: (
+                        f"#{records[i].conf_id}  "
+                        f"ΔE={records[i].delta_e_kcal:.2f} kcal/mol  "
+                        f"Boltzmann={records[i].boltzmann_weight:.3f}"
+                    ),
+                )
+                if mol_3d is not None:
+                    _render_3d_single(mol_3d, conf_id=records[sel_idx].conf_id)
+                else:
+                    st.warning("Geometrias 3D não disponíveis.")
+
+        with overlay_tab:
+            st.caption("Confôrmero selecionado em CPK · demais como fantasmas alinhados por RMSD")
+            if not records:
+                st.warning("Nenhum confôrmero passa nos filtros atuais.")
+            elif mol_3d is not None:
+                _render_3d_overlay(mol_3d, records)
             else:
                 st.warning("Geometrias 3D não disponíveis.")
-
-    with overlay_tab:
-        st.caption("Confôrmero selecionado em CPK · demais como fantasmas alinhados por RMSD")
-        if not records:
-            st.warning("Nenhum confôrmero passa nos filtros atuais.")
-        elif mol_3d is not None:
-            _render_3d_overlay(mol_3d, records)
-        else:
-            st.warning("Geometrias 3D não disponíveis.")
