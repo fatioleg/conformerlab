@@ -97,7 +97,7 @@ from conformerlab.analysis.pipeline import analyze
 from conformerlab.refine.mlip import refine_with_mlip
 
 # 1) Generate
-mol = MoleculeInput(smiles="C(OC1=CC=CC=C1)COC(C1=CC=CC=C1)CON")
+mol = MoleculeInput(smiles="CC(C)Cc1ccc(cc1)C(C)C(=O)O")  # ibuprofen
 backend = get_backend("rdkit")
 ensemble = backend.generate(mol, GenerationSettings(preset="ensemble", max_conformers=50))
 ensemble = analyze(ensemble)                       # ΔE, Boltzmann, RMSD, geometry

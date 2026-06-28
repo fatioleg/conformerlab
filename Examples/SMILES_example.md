@@ -1,4 +1,5 @@
-1-Example default = C(OC1=CC=CC=C1)COC(C1=CC=CC=C1)CON
+# Example molecules (SMILES)
 
-
-2- PEG-Cuma = CCN(CC)c1ccc2cc(C(=O)OCCOCCOCCOCCOCCOCCOCCOCCOCCO)c(=O)oc2c1
+1. Ibuprofen (default) = `CC(C)Cc1ccc(cc1)C(C)C(=O)O`
+2. Aspirin = `CC(=O)Oc1ccccc1C(=O)O`
+3. Caffeine = `Cn1cnc2c1c(=O)n(C)c(=O)n2C`

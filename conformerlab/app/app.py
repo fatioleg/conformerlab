@@ -410,7 +410,7 @@ with tab_load:
     if input_mode == "SMILES":
         smiles_val = st.text_input(
             "SMILES",
-            value="C(OC1=CC=CC=C1)COC(C1=CC=CC=C1)CON",
+            value="CC(C)Cc1ccc(cc1)C(C)C(=O)O",
             placeholder="ex: CC(=O)Oc1ccccc1C(=O)O",
         )
     elif input_mode == "SDF":
