@@ -148,9 +148,7 @@ uv run ruff check src/ tests/
 
 ## 📑 Scientific conventions
 
-Unit conventions, the backend contract, and the definition of done are documented in
-[`conformerlab/AGENTS.md`](conformerlab/AGENTS.md); architecture decisions in
-[`conformerlab/DECISIONS.md`](conformerlab/DECISIONS.md) and the history in
+Unit conventions and the change history are documented in
 [`conformerlab/CHANGELOG.md`](conformerlab/CHANGELOG.md).
 
 ---

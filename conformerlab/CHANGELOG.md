@@ -38,10 +38,7 @@ versionamento [SemVer](https://semver.org/). Uma linha por mudança não trivial
 - `tests/test_analysis_align.py`: 7 testes cobrindo detecção de átomos planares e alinhamento (incluindo fallback para moléculas sem features planares).
 
 ### Changed
-- `app.py` (overlay): substituído `_align_conformers` local por `analysis.align.align_conformers`, movendo a lógica científica para o módulo correto conforme `AGENTS.md`.
-- `CHANGELOG.md` e `DECISIONS.md` para rastreabilidade de mudanças e decisões.
-- `CLAUDE.md` (raiz): política operacional do Claude Code — política de modelos
-  para minimizar tokens e regra de delegação de programação pesada ao Codex.
+- `app.py` (overlay): substituído `_align_conformers` local por `analysis.align.align_conformers`, movendo a lógica científica para o módulo do pacote.
 - `.claude/settings.json`: default de modelo do projeto = `sonnet`.
 
 ## [0.1.0]

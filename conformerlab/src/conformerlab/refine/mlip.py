@@ -57,7 +57,7 @@ _suppress_torch_compile()
 
 # E402: estes imports vêm depois do setup de env vars de propósito — as vars de
 # supressão do torch.compile precisam ser definidas antes de qualquer import que
-# toque o torch (ver ADR 0005 em DECISIONS.md).
+# toque o torch.
 from conformerlab.core.errors import BackendNotAvailableError  # noqa: E402
 from conformerlab.core.types import (  # noqa: E402
     EnsembleResult,
