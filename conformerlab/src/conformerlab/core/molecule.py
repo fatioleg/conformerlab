@@ -69,6 +69,7 @@ def mol_from_sdf(path: str | Path, add_hs: bool = True) -> Chem.Mol:
                 Chem.SanitizeMol(mol)
             except (ValueError, RuntimeError):
                 pass
+            Chem.FastFindRings(mol)
     if mol is None:
         raise InvalidMoleculeFileError(f"No readable molecule in SDF: {str(path)!r}")
     if add_hs:
